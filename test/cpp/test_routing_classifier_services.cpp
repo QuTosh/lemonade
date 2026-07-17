@@ -66,7 +66,7 @@ static ClassifierPtr make_semantic_classifier() {
         }},
     });
 }
-
+// comment
 static ClassifierPtr make_model_classifier() {
     return lemon::make_classifier(json{
         {"id", "pii"},
