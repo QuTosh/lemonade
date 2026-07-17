@@ -122,7 +122,7 @@ static void run_case_dir(const fs::path& case_dir, const fs::path& root) {
         const bool want_trace = row["request"].value("route_trace", false);
         Decision decision = engine.route(to_context(row["request"]), want_trace);
         const json produced = lemon::route_decision_to_json(decision);
-        const json& expected = row.at("decision");
+        const json& expected = row.at("policy");
 
         const bool ok = produced == expected;
         check(name, ok);
