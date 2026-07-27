@@ -34,6 +34,10 @@ namespace lemon {
 // Forward declaration
 class SystemMetricsPlatform;
 
+namespace jobs {
+class JobManager;
+}
+
 struct RouterDispatchResult {
     std::string requested_model;
     std::string selected_model;
@@ -158,6 +162,15 @@ private:
     void handle_shutdown(const httplib::Request& req, httplib::Response& res);
     void handle_simulate_vram_pressure(const httplib::Request& req, httplib::Response& res);
 
+    // Generic job-engine endpoint handlers
+    void handle_jobs_create(const httplib::Request& req, httplib::Response& res);
+    void handle_jobs_list(const httplib::Request& req, httplib::Response& res);
+    void handle_jobs_get(const httplib::Request& req, httplib::Response& res);
+    void handle_jobs_pause(const httplib::Request& req, httplib::Response& res);
+    void handle_jobs_interrupt(const httplib::Request& req, httplib::Response& res);
+    void handle_jobs_resume(const httplib::Request& req, httplib::Response& res);
+    void handle_jobs_delete(const httplib::Request& req, httplib::Response& res);
+
     // Backend management endpoint handlers
     void handle_install(const httplib::Request& req, httplib::Response& res);
     void handle_install_dry_run(const httplib::Request& req, httplib::Response& res);
@@ -255,8 +268,10 @@ private:
     // if the model is already loaded they are ignored so explicit /v1/load settings win.
     // Callers must pass only load-level options from extract_auto_load_options() — never
     // the raw request body — to keep request-scoped fields out of persistent recipe options.
-    void auto_load_model_if_needed(const std::string& model_name,
-                                   const json& request_options = json::object());
+    void auto_load_model_if_needed(
+        const std::string& model_name,
+        const json& request_options = json::object(),
+        LoadPurpose load_purpose = LoadPurpose::UserInference);
 
     // Helper: persist the registry's installed-providers list into config.json
     // by overlaying onto the current runtime-config snapshot. Called after
@@ -308,6 +323,7 @@ private:
     std::unique_ptr<BackendManager> backend_manager_;
     std::unique_ptr<CloudProviderRegistry> cloud_registry_;
     std::unique_ptr<WebSocketServer> websocket_server_;
+    std::unique_ptr<lemon::jobs::JobManager> job_manager_;
 
     std::mutex downloads_mutex_;
     std::map<std::string, std::shared_ptr<DownloadJob>> download_jobs_;
