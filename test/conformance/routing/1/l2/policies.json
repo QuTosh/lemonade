@@ -3,185 +3,59 @@
     "version": "1",
     "recipe": "collection.router",
     "routing": {
-      "candidates": [
-        "MathLLM",
-        "CodingLLM",
-        "DefaultLLM"
-      ],
+      "candidates": ["MathLLM", "CodingLLM", "DefaultLLM"],
       "default_model": "DefaultLLM"
     }
   },
   "policies": {
     "concepts": {
       "model_name": "user.Semantic-Concepts",
-      "components": [
-        "MathLLM",
-        "CodingLLM",
-        "DefaultLLM",
-        "EmbedModel"
-      ],
+      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedModel"],
       "routing": {
         "classifiers": [
-          {
-            "id": "topic",
-            "type": "semantic_similarity",
-            "model": "EmbedModel",
-            "reference_phrases": {
-              "coding": [
-                "writes code"
-              ],
-              "math": [
-                "proves theorems"
-              ]
-            }
-          }
+          { "id": "topic", "type": "semantic_similarity", "model": "EmbedModel", "reference_phrases": { "coding": ["writes code"], "math": ["proves theorems"] } }
         ],
         "rules": [
-          {
-            "id": "route-CodingLLM",
-            "match": {
-              "classifier": "topic",
-              "label": "coding",
-              "min_score": 0.75
-            },
-            "route_to": "CodingLLM"
-          },
-          {
-            "id": "route-MathLLM",
-            "match": {
-              "classifier": "topic",
-              "label": "math",
-              "min_score": 0.75
-            },
-            "route_to": "MathLLM"
-          }
+          { "id": "route-CodingLLM", "match": { "classifier": "topic", "label": "coding", "min_score": 0.75 }, "route_to": "CodingLLM" },
+          { "id": "route-MathLLM", "match": { "classifier": "topic", "label": "math", "min_score": 0.75 }, "route_to": "MathLLM" }
         ]
       }
     },
     "implicit_label": {
       "model_name": "user.Semantic-ImplicitLabel",
-      "components": [
-        "MathLLM",
-        "CodingLLM",
-        "DefaultLLM",
-        "EmbedModel"
-      ],
+      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedModel"],
       "routing": {
         "classifiers": [
-          {
-            "id": "topic",
-            "type": "semantic_similarity",
-            "model": "EmbedModel",
-            "reference_phrases": {
-              "coding": [
-                "writes code"
-              ],
-              "math": [
-                "proves theorems"
-              ]
-            },
-            "default_label": "coding"
-          }
+          { "id": "topic", "type": "semantic_similarity", "model": "EmbedModel", "reference_phrases": { "coding": ["writes code"], "math": ["proves theorems"] }, "default_label": "coding" }
         ],
         "rules": [
-          {
-            "id": "implicit-label-rule",
-            "match": {
-              "classifier": "topic",
-              "min_score": 0.5
-            },
-            "route_to": "CodingLLM"
-          }
+          { "id": "implicit-label-rule", "match": { "classifier": "topic", "min_score": 0.5 }, "route_to": "CodingLLM" }
         ]
       }
     },
     "on_error": {
       "model_name": "user.Semantic-OnError",
-      "components": [
-        "MathLLM",
-        "CodingLLM",
-        "DefaultLLM",
-        "EmbedOpen",
-        "EmbedClosed"
-      ],
+      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedOpen", "EmbedClosed"],
       "routing": {
         "classifiers": [
-          {
-            "id": "fail_open",
-            "type": "semantic_similarity",
-            "model": "EmbedOpen",
-            "reference_phrases": {
-              "coding": [
-                "writes code"
-              ]
-            }
-          },
-          {
-            "id": "fail_closed",
-            "type": "semantic_similarity",
-            "model": "EmbedClosed",
-            "reference_phrases": {
-              "coding": [
-                "writes code"
-              ]
-            },
-            "on_error": "match_true"
-          }
+          { "id": "fail_open", "type": "semantic_similarity", "model": "EmbedOpen", "reference_phrases": { "coding": ["writes code"] } },
+          { "id": "fail_closed", "type": "semantic_similarity", "model": "EmbedClosed", "reference_phrases": { "coding": ["writes code"] }, "on_error": "match_true" }
         ],
         "rules": [
-          {
-            "id": "open-rule",
-            "match": {
-              "classifier": "fail_open",
-              "label": "coding",
-              "min_score": 0.5
-            },
-            "route_to": "CodingLLM"
-          },
-          {
-            "id": "closed-rule",
-            "match": {
-              "classifier": "fail_closed",
-              "label": "coding",
-              "min_score": 0.5
-            },
-            "route_to": "MathLLM"
-          }
+          { "id": "open-rule", "match": { "classifier": "fail_open", "label": "coding", "min_score": 0.5 }, "route_to": "CodingLLM" },
+          { "id": "closed-rule", "match": { "classifier": "fail_closed", "label": "coding", "min_score": 0.5 }, "route_to": "MathLLM" }
         ]
       }
     },
     "scoring": {
       "model_name": "user.Semantic-Scoring",
-      "components": [
-        "MathLLM",
-        "CodingLLM",
-        "DefaultLLM",
-        "EmbedModel"
-      ],
+      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedModel"],
       "routing": {
         "classifiers": [
-          {
-            "id": "topic",
-            "type": "semantic_similarity",
-            "model": "EmbedModel",
-            "reference_phrases": {
-              "coding": [
-                "writes code",
-                "fixes bugs"
-              ]
-            }
-          }
+          { "id": "topic", "type": "semantic_similarity", "model": "EmbedModel", "reference_phrases": { "coding": ["writes code", "fixes bugs"] } }
         ],
         "rules": [
-          {
-            "id": "route-CodingLLM",
-            "match": {
-              "classifier": "topic",
-              "label": "coding",
-              "min_score": 0.6
-            },
-            "route_to": "CodingLLM"
-          }
+          { "id": "route-CodingLLM", "match": { "classifier": "topic", "label": "coding", "min_score": 0.6 }, "route_to": "CodingLLM" }
         ]
       }
     }

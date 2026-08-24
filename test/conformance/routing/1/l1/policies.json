@@ -2,15 +2,9 @@
   "defaults": {
     "version": "1",
     "recipe": "collection.router",
-    "components": [
-      "local",
-      "cloud"
-    ],
+    "components": ["local", "cloud"],
     "routing": {
-      "candidates": [
-        "local",
-        "cloud"
-      ],
+      "candidates": ["local", "cloud"],
       "default_model": "local"
     }
   },
@@ -19,20 +13,8 @@
       "model_name": "user.Conditions-CharBounds",
       "routing": {
         "rules": [
-          {
-            "id": "min_chars-rule",
-            "match": {
-              "min_chars": 10
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "max_chars-rule",
-            "match": {
-              "max_chars": 6
-            },
-            "route_to": "cloud"
-          }
+          { "id": "min_chars-rule", "match": { "min_chars": 10 }, "route_to": "cloud" },
+          { "id": "max_chars-rule", "match": { "max_chars": 6 }, "route_to": "cloud" }
         ]
       }
     },
@@ -40,20 +22,8 @@
       "model_name": "user.Conditions-Features",
       "routing": {
         "rules": [
-          {
-            "id": "has_tools-rule",
-            "match": {
-              "has_tools": true
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "has_images-rule",
-            "match": {
-              "has_images": true
-            },
-            "route_to": "cloud"
-          }
+          { "id": "has_tools-rule", "match": { "has_tools": true }, "route_to": "cloud" },
+          { "id": "has_images-rule", "match": { "has_images": true }, "route_to": "cloud" }
         ]
       }
     },
@@ -61,13 +31,7 @@
       "model_name": "user.Conditions-Features-Negated",
       "routing": {
         "rules": [
-          {
-            "id": "no-tools-rule",
-            "match": {
-              "has_tools": false
-            },
-            "route_to": "cloud"
-          }
+          { "id": "no-tools-rule", "match": { "has_tools": false }, "route_to": "cloud" }
         ]
       }
     },
@@ -76,59 +40,13 @@
       "routing": {
         "default_model": "cloud",
         "rules": [
-          {
-            "id": "sensitive-task-stays-local",
-            "match": {
-              "any": [
-                {
-                  "metadata": {
-                    "key": "task_class",
-                    "any": [
-                      "payment",
-                      "checkout"
-                    ]
-                  }
-                },
-                {
-                  "metadata": {
-                    "key": "consent",
-                    "equals": "denied"
-                  }
-                }
-              ]
-            },
-            "route_to": "local"
-          },
-          {
-            "id": "no-consent-recorded-stays-local",
-            "match": {
-              "metadata": {
-                "key": "consent",
-                "exists": false
-              }
-            },
-            "route_to": "local"
-          },
-          {
-            "id": "region-recorded-stays-local",
-            "match": {
-              "metadata": {
-                "key": "region",
-                "exists": true
-              }
-            },
-            "route_to": "local"
-          },
-          {
-            "id": "blank-equals-never-matches",
-            "match": {
-              "metadata": {
-                "key": "note",
-                "equals": ""
-              }
-            },
-            "route_to": "local"
-          }
+          { "id": "sensitive-task-stays-local", "match": { "any": [
+            { "metadata": { "key": "task_class", "any": ["payment", "checkout"] } },
+            { "metadata": { "key": "consent", "equals": "denied" } }
+          ] }, "route_to": "local" },
+          { "id": "no-consent-recorded-stays-local", "match": { "metadata": { "key": "consent", "exists": false } }, "route_to": "local" },
+          { "id": "region-recorded-stays-local", "match": { "metadata": { "key": "region", "exists": true } }, "route_to": "local" },
+          { "id": "blank-equals-never-matches", "match": { "metadata": { "key": "note", "equals": "" } }, "route_to": "local" }
         ]
       }
     },
@@ -136,114 +54,24 @@
       "model_name": "user.Conditions-Vocab",
       "routing": {
         "rules": [
-          {
-            "id": "keywords_any-rule",
-            "match": {
-              "keywords_any": [
-                "alpha"
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "keywords_all-rule",
-            "match": {
-              "keywords_all": [
-                "charlie",
-                "delta"
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "regex-rule",
-            "match": {
-              "regex": "echo-[0-9]+"
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "any-rule",
-            "match": {
-              "any": [
-                {
-                  "keywords_any": [
-                    "foxtrot"
-                  ]
-                },
-                {
-                  "keywords_any": [
-                    "golf"
-                  ]
-                }
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "all-rule",
-            "match": {
-              "all": [
-                {
-                  "keywords_any": [
-                    "hotel"
-                  ]
-                },
-                {
-                  "keywords_any": [
-                    "india"
-                  ]
-                }
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "not-rule",
-            "match": {
-              "all": [
-                {
-                  "keywords_any": [
-                    "juliett"
-                  ]
-                },
-                {
-                  "not": {
-                    "keywords_any": [
-                      "kilo"
-                    ]
-                  }
-                }
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "implicit-all-rule",
-            "match": {
-              "keywords_any": [
-                "lima"
-              ],
-              "max_chars": 1000
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "unicode-keyword-rule",
-            "match": {
-              "keywords_any": [
-                "café"
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "digit-class-rule",
-            "match": {
-              "regex": "id-\\d"
-            },
-            "route_to": "cloud"
-          }
+          { "id": "keywords_any-rule", "match": { "keywords_any": ["alpha"] }, "route_to": "cloud" },
+          { "id": "keywords_all-rule", "match": { "keywords_all": ["charlie", "delta"] }, "route_to": "cloud" },
+          { "id": "regex-rule", "match": { "regex": "echo-[0-9]+" }, "route_to": "cloud" },
+          { "id": "any-rule", "match": { "any": [
+            { "keywords_any": ["foxtrot"] },
+            { "keywords_any": ["golf"] }
+          ] }, "route_to": "cloud" },
+          { "id": "all-rule", "match": { "all": [
+            { "keywords_any": ["hotel"] },
+            { "keywords_any": ["india"] }
+          ] }, "route_to": "cloud" },
+          { "id": "not-rule", "match": { "all": [
+            { "keywords_any": ["juliett"] },
+            { "not": { "keywords_any": ["kilo"] } }
+          ] }, "route_to": "cloud" },
+          { "id": "implicit-all-rule", "match": { "keywords_any": ["lima"], "max_chars": 1000 }, "route_to": "cloud" },
+          { "id": "unicode-keyword-rule", "match": { "keywords_any": ["caf\u00e9"] }, "route_to": "cloud" },
+          { "id": "digit-class-rule", "match": { "regex": "id-\\d" }, "route_to": "cloud" }
         ]
       }
     },
@@ -251,25 +79,8 @@
       "model_name": "user.Input-Forms",
       "routing": {
         "rules": [
-          {
-            "id": "escalate-rule",
-            "match": {
-              "keywords_any": [
-                "escalate"
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "alpha-omega-rule",
-            "match": {
-              "keywords_all": [
-                "alpha",
-                "omega"
-              ]
-            },
-            "route_to": "cloud"
-          }
+          { "id": "escalate-rule", "match": { "keywords_any": ["escalate"] }, "route_to": "cloud" },
+          { "id": "alpha-omega-rule", "match": { "keywords_all": ["alpha", "omega"] }, "route_to": "cloud" }
         ]
       }
     },
@@ -277,83 +88,20 @@
       "model_name": "user.Leaf-Order",
       "routing": {
         "rules": [
-          {
-            "id": "multi-op-leaf-rule",
-            "match": {
-              "regex": "delta-[0-9]",
-              "keywords_any": [
-                "delta"
-              ],
-              "min_chars": 4
-            },
-            "route_to": "cloud"
-          }
+          { "id": "multi-op-leaf-rule", "match": { "regex": "delta-[0-9]", "keywords_any": ["delta"], "min_chars": 4 }, "route_to": "cloud" }
         ]
       }
     },
     "resolution": {
       "model_name": "user.Resolution",
-      "components": [
-        "local",
-        "cloud",
-        "edge"
-      ],
+      "components": ["local", "cloud", "edge"],
       "routing": {
-        "candidates": [
-          "local",
-          "cloud",
-          "edge"
-        ],
+        "candidates": ["local", "cloud", "edge"],
         "rules": [
-          {
-            "id": "first-rule",
-            "match": {
-              "keywords_any": [
-                "shared",
-                "only1"
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "second-rule",
-            "match": {
-              "keywords_any": [
-                "shared",
-                "only2"
-              ]
-            },
-            "route_to": "edge"
-          },
-          {
-            "id": "explicit-default-rule",
-            "match": {
-              "keywords_any": [
-                "only3"
-              ]
-            },
-            "route_to": "local"
-          },
-          {
-            "id": "nested-outputs-rule",
-            "match": {
-              "keywords_any": [
-                "escalate"
-              ]
-            },
-            "route_to": "cloud",
-            "outputs": {
-              "category": "support",
-              "priority": 1,
-              "metadata": {
-                "team": "tier2",
-                "tags": [
-                  "urgent",
-                  "billing"
-                ]
-              }
-            }
-          }
+          { "id": "first-rule", "match": { "keywords_any": ["shared", "only1"] }, "route_to": "cloud" },
+          { "id": "second-rule", "match": { "keywords_any": ["shared", "only2"] }, "route_to": "edge" },
+          { "id": "explicit-default-rule", "match": { "keywords_any": ["only3"] }, "route_to": "local" },
+          { "id": "nested-outputs-rule", "match": { "keywords_any": ["escalate"] }, "route_to": "cloud", "outputs": { "category": "support", "priority": 1, "metadata": { "team": "tier2", "tags": ["urgent", "billing"] } } }
         ]
       }
     },
@@ -361,40 +109,14 @@
       "model_name": "user.Trace",
       "routing": {
         "rules": [
-          {
-            "id": "any-rule",
-            "match": {
-              "any": [
-                {
-                  "keywords_any": [
-                    "alpha"
-                  ]
-                },
-                {
-                  "regex": "bravo"
-                }
-              ]
-            },
-            "route_to": "cloud"
-          },
-          {
-            "id": "all-rule",
-            "match": {
-              "all": [
-                {
-                  "keywords_any": [
-                    "charlie"
-                  ]
-                },
-                {
-                  "not": {
-                    "max_chars": 5
-                  }
-                }
-              ]
-            },
-            "route_to": "cloud"
-          }
+          { "id": "any-rule", "match": { "any": [
+            { "keywords_any": ["alpha"] },
+            { "regex": "bravo" }
+          ] }, "route_to": "cloud" },
+          { "id": "all-rule", "match": { "all": [
+            { "keywords_any": ["charlie"] },
+            { "not": { "max_chars": 5 } }
+          ] }, "route_to": "cloud" }
         ]
       }
     }
