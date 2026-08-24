@@ -29,7 +29,7 @@ struct TestResult {
 static void test_unknown_row_keys(TestResult& r) {
     using lemon::conformance::unknown_row_keys;
 
-    const json ok = {{"name", "c"}, {"note", "n"}, {"request", json::object()},
+    const json ok = {{"name", "c"}, {"policy", "p"}, {"note", "n"}, {"request", json::object()},
                      {"decision", json::object()}, {"services", json::object()}};
     r.expect("all allowed keys accepted", unknown_row_keys(ok).empty());
 

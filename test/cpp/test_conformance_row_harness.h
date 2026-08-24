@@ -18,7 +18,7 @@ namespace conformance {
 // typo'd field (e.g. "expected" for "decision") fails loudly instead of running
 // with a silently-missing value.
 inline const std::set<std::string>& allowed_row_keys() {
-    static const std::set<std::string> keys = {"name", "note", "request", "decision", "services"};
+    static const std::set<std::string> keys = {"name", "policy", "note", "request", "decision", "services"};
     return keys;
 }
 
