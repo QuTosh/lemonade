@@ -93,10 +93,54 @@ static DirEntries list_entries(const fs::path& dir, std::error_code& ec) {
     return entries;
 }
 
-// Corpus layout is exactly routing/<version>/<case>/{policy.json,cases.jsonl}.
-// Anything off that shape — stray files, a missing file, a nested subdir, an
-// unreadable dir — is a hard failure, not silently skipped.
-static std::vector<fs::path> find_case_dirs(const fs::path& root) {
+// A leaf band directory must hold exactly policies.json + cases.jsonl and no
+// subdirectory. Returns true only when it is well-formed; every deviation is a
+// hard failure, not a silent skip.
+static bool is_valid_band_dir(const fs::path& band_dir, const fs::path& root) {
+    const std::string rel = rel_label(band_dir, root);
+
+    std::error_code policies_ec;
+    std::error_code cases_ec;
+    const bool has_policies = fs::exists(band_dir / "policies.json", policies_ec);
+    const bool has_cases = fs::exists(band_dir / "cases.jsonl", cases_ec);
+    std::error_code sec;
+    const DirEntries nested = list_entries(band_dir, sec);
+
+    bool ok = true;
+    if (policies_ec || cases_ec) {
+        fail(rel + ": entries are readable", (policies_ec ? policies_ec : cases_ec).message());
+        ok = false;
+    } else if (!has_policies || !has_cases) {
+        const std::string missing = (!has_policies && !has_cases)
+                                        ? "policies.json and cases.jsonl"
+                                        : (!has_policies ? "policies.json" : "cases.jsonl");
+        fail(rel + ": has policies.json + cases.jsonl", "missing " + missing);
+        ok = false;
+    }
+    if (sec) {
+        fail(rel + ": is readable", sec.message());
+        ok = false;
+    } else {
+        if (!nested.dirs.empty()) {
+            check(rel + ": is a leaf (no subdirectories)", false);
+            ok = false;
+        }
+        for (const auto& entry : nested.non_dirs) {
+            const std::string fname = entry.filename().string();
+            if (fname != "policies.json" && fname != "cases.jsonl") {
+                check(rel_label(entry, root) + ": is policies.json or cases.jsonl", false);
+                ok = false;
+            }
+        }
+    }
+    return ok;
+}
+
+// Corpus layout is exactly routing/<version>/<band>/{policies.json,cases.jsonl}.
+// <band> groups cases by the engine tier they lock (l0a, l1, l2, l3). Anything off
+// that shape — stray files, a missing file, an extra nesting level, an unreadable
+// dir — is a hard failure, not silently skipped.
+static std::vector<fs::path> find_band_dirs(const fs::path& root) {
     std::vector<fs::path> dirs;
     std::error_code ec;
     // Files directly under the root are docs (README.md), not corpus content.
@@ -113,47 +157,11 @@ static std::vector<fs::path> find_case_dirs(const fs::path& root) {
             continue;
         }
         for (const auto& stray : version_entries.non_dirs) {
-            check(rel_label(stray, root) + ": is a case directory", false);
+            check(rel_label(stray, root) + ": is a band directory", false);
         }
-        for (const auto& case_dir : version_entries.dirs) {
-            const std::string rel = rel_label(case_dir, root);
-
-            std::error_code policy_ec;
-            std::error_code cases_ec;
-            const bool has_policy = fs::exists(case_dir / "policy.json", policy_ec);
-            const bool has_cases = fs::exists(case_dir / "cases.jsonl", cases_ec);
-            std::error_code sec;
-            const DirEntries nested = list_entries(case_dir, sec);
-
-            bool ok = true;
-            if (policy_ec || cases_ec) {
-                fail(rel + ": entries are readable", (policy_ec ? policy_ec : cases_ec).message());
-                ok = false;
-            } else if (!has_policy || !has_cases) {
-                const std::string missing = (!has_policy && !has_cases)
-                                                ? "policy.json and cases.jsonl"
-                                                : (!has_policy ? "policy.json" : "cases.jsonl");
-                fail(rel + ": has policy.json + cases.jsonl", "missing " + missing);
-                ok = false;
-            }
-            if (sec) {
-                fail(rel + ": is readable", sec.message());
-                ok = false;
-            } else {
-                if (!nested.dirs.empty()) {
-                    check(rel + ": is a leaf (no subdirectories)", false);
-                    ok = false;
-                }
-                for (const auto& entry : nested.non_dirs) {
-                    const std::string fname = entry.filename().string();
-                    if (fname != "policy.json" && fname != "cases.jsonl") {
-                        check(rel_label(entry, root) + ": is policy.json or cases.jsonl", false);
-                        ok = false;
-                    }
-                }
-            }
-            if (ok) {
-                dirs.push_back(case_dir);
+        for (const auto& band_dir : version_entries.dirs) {
+            if (is_valid_band_dir(band_dir, root)) {
+                dirs.push_back(band_dir);
             }
         }
     }
@@ -341,22 +349,33 @@ static void report_mismatch(const json& expected, const json& produced,
     }
 }
 
-// The directory name is the schema major the policy must declare, so a policy
-// under the wrong version cannot pass unnoticed. Read once per directory.
-static std::optional<json> load_policy_json(const fs::path& case_dir, const std::string& rel) {
+// A band's policies.json is a name -> policy map; a case selects one by its
+// policy_name. The version directory name (the band's parent) is the schema major
+// every policy must declare, so a policy under the wrong version cannot pass
+// unnoticed. Read once per band.
+static std::optional<json> load_policies_json(const fs::path& band_dir, const std::string& rel) {
+    json policies_json;
     try {
-        json policy_json = load_json_file(case_dir / "policy.json");
-        const std::string directory_version = case_dir.parent_path().filename().string();
-        if (!policy_json.contains("version") || !policy_json["version"].is_string() ||
-            policy_json["version"].get<std::string>() != directory_version) {
-            check(rel + ": policy version matches schema-major directory", false);
-            return std::nullopt;
-        }
-        return policy_json;
+        policies_json = load_json_file(band_dir / "policies.json");
     } catch (const std::exception& e) {
-        fail(rel + ": policy.json parses", e.what());
+        fail(rel + ": policies.json parses", e.what());
         return std::nullopt;
     }
+    if (!policies_json.is_object() || policies_json.empty()) {
+        check(rel + ": policies.json is a non-empty name -> policy map", false);
+        return std::nullopt;
+    }
+    const std::string directory_version = band_dir.parent_path().filename().string();
+    bool ok = true;
+    for (auto it = policies_json.begin(); it != policies_json.end(); ++it) {
+        const json& policy = it.value();
+        if (!policy.is_object() || !policy.contains("version") || !policy["version"].is_string() ||
+            policy["version"].get<std::string>() != directory_version) {
+            check(rel + "/" + it.key() + ": policy version matches schema-major directory", false);
+            ok = false;
+        }
+    }
+    return ok ? std::optional<json>(std::move(policies_json)) : std::nullopt;
 }
 
 // Built per case: a semantic_similarity classifier caches its embeddings on its
@@ -384,10 +403,12 @@ static std::optional<RoutingPolicyEngine> compile_engine(RoutePolicy policy,
 }
 
 // One case per non-blank line. A row must be an object carrying a request and a
-// decision, hold no key outside the allowlist, and have a name unique within the
-// file: the coverage matrix maps one behavior to one named case.
-static std::optional<json> read_case_row(const std::string& line, const std::string& rel,
-                                         int line_no, std::set<std::string>& seen_names) {
+// decision, name a policy_name, hold no key outside the allowlist, and have a
+// case_name unique within its policy: the coverage matrix maps one behavior to one
+// named case, and (policy_name, case_name) is that case's identity. `seen_by_policy`
+// tracks the case_names already accepted under each policy_name.
+static std::optional<json> read_case_row(const std::string& line, const std::string& rel, int line_no,
+                                         std::map<std::string, std::set<std::string>>& seen_by_policy) {
     const std::string where = rel + ": cases.jsonl line " + std::to_string(line_no);
 
     json row;
@@ -409,21 +430,27 @@ static std::optional<json> read_case_row(const std::string& line, const std::str
     if (!unknown_keys.empty()) {
         return std::nullopt;
     }
-    switch (lemon::conformance::check_case_name(row, seen_names)) {
+    const auto policy_it = row.find("policy_name");
+    if (policy_it == row.end() || !policy_it->is_string() || policy_it->get<std::string>().empty()) {
+        check(where + " has a policy_name", false);
+        return std::nullopt;
+    }
+    const std::string policy_name = policy_it->get<std::string>();
+    switch (lemon::conformance::check_case_name(row, seen_by_policy[policy_name])) {
         case lemon::conformance::NameStatus::kMissing:
-            check(where + " has a name", false);
+            check(where + " has a case_name", false);
             return std::nullopt;
         case lemon::conformance::NameStatus::kNotString:
-            check(where + " name is a string", false);
+            check(where + " case_name is a string", false);
             return std::nullopt;
         case lemon::conformance::NameStatus::kDuplicate:
-            check(where + " duplicate case name '" + row.value("name", "") + "'", false);
+            check(where + " duplicate case name '" + policy_name + "/" + row.value("case_name", "") + "'", false);
             return std::nullopt;
         case lemon::conformance::NameStatus::kOk:
             break;
     }
-    // check_case_name accepted it, so "name" is a non-empty string here.
-    seen_names.insert(row.value("name", ""));
+    // check_case_name accepted it, so "case_name" is a non-empty string here.
+    seen_by_policy[policy_name].insert(row.value("case_name", ""));
     return row;
 }
 
@@ -461,40 +488,53 @@ static bool is_blank(const std::string& line) {
     return line.find_first_not_of(" \t\r\n") == std::string::npos;
 }
 
-static int run_case_dir(const fs::path& case_dir, const fs::path& root) {
-    const std::string rel = rel_label(case_dir, root);
+static int run_band_dir(const fs::path& band_dir, const fs::path& root) {
+    const std::string rel = rel_label(band_dir, root);
 
-    std::ifstream cases(case_dir / "cases.jsonl");
+    // Read the band's policies once, up front, so a bad policy fails here instead
+    // of on whichever case uses it first.
+    const std::optional<json> policies_json = load_policies_json(band_dir, rel);
+    if (!policies_json) return 0;
+
+    // Build + compile each policy once too, so a structurally bad policy fails the
+    // whole band here rather than on whichever case uses it first. Compile never
+    // calls the services, so an empty fake is enough. The per-case build below stays.
+    for (auto it = policies_json->begin(); it != policies_json->end(); ++it) {
+        const std::string prel = rel + "/" + it.key();
+        lemon::testing::FakeClassifierServices probe;
+        std::optional<RoutePolicy> probe_policy = build_policy(it.value(), prel);
+        if (!probe_policy) return 0;
+        if (!compile_engine(std::move(*probe_policy), probe.make(), prel)) return 0;
+    }
+
+    std::ifstream cases(band_dir / "cases.jsonl");
     if (!cases) {
         check(rel + ": cases.jsonl opens", false);
         return 0;
     }
 
-    // Read the shared policy once, up front, so a bad policy fails here instead
-    // of on whichever row runs first.
-    const std::optional<json> policy_json = load_policy_json(case_dir, rel);
-    if (!policy_json) return 0;
-
-    // Build + compile it once too, so a structurally bad policy fails the whole
-    // directory here rather than on whichever row runs first. Compile never calls
-    // the services, so an empty fake is enough. The per-case build below stays.
-    lemon::testing::FakeClassifierServices probe;
-    std::optional<RoutePolicy> probe_policy = build_policy(*policy_json, rel);
-    if (!probe_policy) return 0;
-    if (!compile_engine(std::move(*probe_policy), probe.make(), rel)) return 0;
-
     int executed = 0;
     int line_no = 0;
     std::string line;
-    std::set<std::string> seen_names;
+    std::map<std::string, std::set<std::string>> seen_by_policy;
+    std::set<std::string> used_policies;
     while (std::getline(cases, line)) {
         ++line_no;
         if (is_blank(line)) continue;
 
-        std::optional<json> row = read_case_row(line, rel, line_no, seen_names);
+        std::optional<json> row = read_case_row(line, rel, line_no, seen_by_policy);
         if (!row) continue;
 
-        const std::string name = rel + "/" + row->at("name").get<std::string>();
+        const std::string policy_name = row->at("policy_name").get<std::string>();
+        const std::string name = rel + "/" + policy_name + "/" + row->at("case_name").get<std::string>();
+
+        const auto policy_entry = policies_json->find(policy_name);
+        if (policy_entry == policies_json->end()) {
+            check(name + ": policy_name is defined in policies.json", false);
+            continue;
+        }
+        used_policies.insert(policy_name);
+
         const json& request = row->at("request");
         const lemon::RouteContext request_context = lemon::build_route_context(request, request.value("model", ""));
 
@@ -505,9 +545,9 @@ static int run_case_dir(const fs::path& case_dir, const fs::path& root) {
             continue;
         }
 
-        std::optional<RoutePolicy> policy = build_policy(*policy_json, rel);
+        std::optional<RoutePolicy> policy = build_policy(policy_entry.value(), name);
         if (!policy) return executed;
-        std::optional<RoutingPolicyEngine> engine = compile_engine(std::move(*policy), fake.make(), rel);
+        std::optional<RoutingPolicyEngine> engine = compile_engine(std::move(*policy), fake.make(), name);
         if (!engine) return executed;
 
         run_case(*engine, request_context, fake, *row, name);
@@ -515,6 +555,12 @@ static int run_case_dir(const fs::path& case_dir, const fs::path& root) {
     }
 
     check(rel + ": cases.jsonl has at least one case", executed > 0);
+    // Every declared policy must be exercised by at least one case; an unused
+    // policy is dead weight the corpus should not carry silently.
+    for (auto it = policies_json->begin(); it != policies_json->end(); ++it) {
+        check(rel + "/" + it.key() + ": policy is used by at least one case",
+              used_policies.count(it.key()) != 0);
+    }
     return executed;
 }
 
@@ -527,17 +573,17 @@ int main() {
         return 1;
     }
 
-    const std::vector<fs::path> case_dirs = find_case_dirs(root);
-    if (case_dirs.empty()) {
-        check(root.generic_string() + ": has at least one valid case dir", false);
+    const std::vector<fs::path> band_dirs = find_band_dirs(root);
+    if (band_dirs.empty()) {
+        check(root.generic_string() + ": has at least one valid band dir", false);
         return 1;
     }
     int total_cases = 0;
-    for (const auto& case_dir : case_dirs) {
-        total_cases += run_case_dir(case_dir, root);
+    for (const auto& band_dir : band_dirs) {
+        total_cases += run_band_dir(band_dir, root);
     }
     check("corpus has at least one case", total_cases > 0);
-    std::printf("\n%d case(s) executed across %zu case dir(s)\n", total_cases, case_dirs.size());
+    std::printf("\n%d case(s) executed across %zu band dir(s)\n", total_cases, band_dirs.size());
 
     std::printf("\n%s\n", g_failures == 0 ? "ALL CONFORMANCE CASES PASSED" : "CONFORMANCE CASES FAILED");
     return g_failures == 0 ? 0 : 1;

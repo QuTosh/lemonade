@@ -29,11 +29,11 @@ struct TestResult {
 static void test_unknown_row_keys(TestResult& r) {
     using lemon::conformance::unknown_row_keys;
 
-    const json ok = {{"name", "c"}, {"note", "n"}, {"request", json::object()},
+    const json ok = {{"case_name", "c"}, {"policy_name", "p"}, {"note", "n"}, {"request", json::object()},
                      {"decision", json::object()}, {"services", json::object()}};
     r.expect("all allowed keys accepted", unknown_row_keys(ok).empty());
 
-    const json typo = {{"name", "c"}, {"request", json::object()}, {"expected", json::object()}};
+    const json typo = {{"case_name", "c"}, {"request", json::object()}, {"expected", json::object()}};
     const std::vector<std::string> bad = unknown_row_keys(typo);
     r.expect("typo'd key rejected", bad.size() == 1 && bad.front() == "expected");
 
@@ -58,15 +58,15 @@ static void test_check_case_name(TestResult& r) {
     const std::set<std::string> seen = {"already"};
 
     r.expect("fresh name is ok",
-             check_case_name(json{{"name", "fresh"}}, seen) == NameStatus::kOk);
+             check_case_name(json{{"case_name", "fresh"}}, seen) == NameStatus::kOk);
     r.expect("missing name key",
              check_case_name(json::object(), seen) == NameStatus::kMissing);
     r.expect("empty name string",
-             check_case_name(json{{"name", ""}}, seen) == NameStatus::kMissing);
+             check_case_name(json{{"case_name", ""}}, seen) == NameStatus::kMissing);
     r.expect("non-string name",
-             check_case_name(json{{"name", 123}}, seen) == NameStatus::kNotString);
+             check_case_name(json{{"case_name", 123}}, seen) == NameStatus::kNotString);
     r.expect("duplicate name",
-             check_case_name(json{{"name", "already"}}, seen) == NameStatus::kDuplicate);
+             check_case_name(json{{"case_name", "already"}}, seen) == NameStatus::kDuplicate);
 }
 
 int main() {
