@@ -18,6 +18,7 @@
 #include "model_residency.h"
 #include "backend_manager.h"
 #include "recipe_options.h"
+#include "streaming_proxy.h"
 #include "backends/backend_descriptor.h"
 
 namespace lemon {
@@ -38,10 +39,15 @@ struct Telemetry {
     double time_to_first_token = 0.0;
     double tokens_per_second = 0.0;
     int prompt_tokens = 0;  // From usage.prompt_tokens (includes cached tokens)
+    // Prompt tokens served from the backend's prefix cache on the latest
+    // request. -1 = the latest request did not report cache usage; rendered as
+    // JSON null so a stale numeric value is never attributed to it.
+    int cache_tokens = -1;
     uint64_t request_count_total = 0;
     uint64_t input_tokens_total = 0;
     uint64_t output_tokens_total = 0;
     uint64_t prompt_tokens_total = 0;
+    uint64_t cache_tokens_total = 0;
 
     void reset() {
         input_tokens = 0;
@@ -49,10 +55,12 @@ struct Telemetry {
         time_to_first_token = 0.0;
         tokens_per_second = 0.0;
         prompt_tokens = 0;
+        cache_tokens = -1;
         request_count_total = 0;
         input_tokens_total = 0;
         output_tokens_total = 0;
         prompt_tokens_total = 0;
+        cache_tokens_total = 0;
     }
 
     json to_json() const {
@@ -62,10 +70,12 @@ struct Telemetry {
             {"time_to_first_token", time_to_first_token},
             {"tokens_per_second", tokens_per_second},
             {"prompt_tokens", prompt_tokens},
+            {"cache_tokens", cache_tokens >= 0 ? json(cache_tokens) : json(nullptr)},
             {"request_count_total", request_count_total},
             {"input_tokens_total", input_tokens_total},
             {"output_tokens_total", output_tokens_total},
-            {"prompt_tokens_total", prompt_tokens_total}
+            {"prompt_tokens_total", prompt_tokens_total},
+            {"cache_tokens_total", cache_tokens_total}
         };
     }
 };
@@ -81,7 +91,10 @@ public:
           active_request_count_(0),
           maintenance_in_progress_(false),
           load_duration_ms_(0),
-          last_backend_activity_(std::chrono::steady_clock::now()) {}
+          last_backend_activity_(std::chrono::steady_clock::now()),
+          instance_id_(next_instance_id()) {}
+
+    uint64_t get_instance_id() const { return instance_id_; }
 
     virtual ~WrappedServer();
 
@@ -383,8 +396,27 @@ public:
         std::lock_guard<std::mutex> lock(state_mutex_);
         return recipe_options_;
     }
+
+    // recipe_options_ holds the ctx_size the backend was started with, so the
+    // -1 that asked for it is gone by the time anyone reads it back. Keep that
+    // request so a later load spelling -1 can be recognized as the same load.
+    void set_ctx_size_auto(bool ctx_size_auto) {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        ctx_size_auto_ = ctx_size_auto;
+    }
+    bool ctx_size_is_auto() const {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        return ctx_size_auto_;
+    }
     int get_process_id() const { return get_process_handle_snapshot().pid; }
+    std::vector<std::string> get_launch_command() const;
     int get_backend_port() const;
+
+    struct ProcessInfo {
+        int pid = 0;
+        std::vector<std::string> launch_command;
+    };
+    ProcessInfo get_process_info() const;
 
     // Cheap liveness gate used by the router. On POSIX this relies on
     // ProcessManager::is_running(), which intentionally checks without reaping.
@@ -392,6 +424,9 @@ public:
 
     // True once the backend watchdog force-reset the child process.
     bool was_watchdog_triggered() const { return watchdog_triggered_.load(std::memory_order_acquire); }
+
+    // Request backend reset from watchdog (stops process immediately).
+    void request_backend_reset_from_watchdog(const std::string& reason);
 
     // Human-readable state for /health and debugging endpoints.
     virtual std::string get_backend_health_state() const;
@@ -467,11 +502,7 @@ public:
 
     // Forward streaming requests to the wrapped server (public for Router access)
     // Virtual so backends can transform request (e.g., FLM needs checkpoint in model field)
-    using TelemetryCallback = std::function<void(int input_tokens,
-                                                 int output_tokens,
-                                                 double time_to_first_token,
-                                                 double tokens_per_second,
-                                                 const std::string& error_message)>;
+    using TelemetryCallback = std::function<void(const StreamingProxy::TelemetryData& telemetry)>;
 
     virtual void forward_streaming_request(const std::string& endpoint,
                                            const std::string& request_body,
@@ -552,7 +583,9 @@ protected:
 
     static bool has_process_handle(const ProcessHandle& handle);
     ProcessHandle get_process_handle_snapshot() const;
-    void set_process_handle(ProcessHandle handle);
+    void set_process_handle(ProcessHandle handle,
+                            const std::string& executable,
+                            const std::vector<std::string>& args);
     ProcessHandle consume_process_handle_for_cleanup();
 
     // Choose an available port
@@ -592,6 +625,7 @@ protected:
     std::string server_name_;
     int port_;
     ProcessHandle process_handle_;
+    std::vector<std::string> launch_command_;
     mutable std::mutex process_mutex_;
     Telemetry telemetry_;
     std::string log_level_;
@@ -607,6 +641,7 @@ protected:
     DeviceType device_type_ = DEVICE_NONE;
     std::chrono::steady_clock::time_point last_access_time_;
     RecipeOptions recipe_options_;
+    bool ctx_size_auto_ = false;
 
     // Busy state tracking (for safe eviction)
     mutable std::mutex state_mutex_;
@@ -630,11 +665,16 @@ protected:
     std::atomic<bool>* load_cancel_ = nullptr;
 
 private:
+    static uint64_t next_instance_id() {
+        static std::atomic<uint64_t> counter{0};
+        return ++counter;
+    }
+    uint64_t instance_id_;
+
     void begin_backend_request(BackendRequestKind kind);
     void end_backend_request(BackendRequestKind kind);
     void backend_watchdog_loop();
     bool has_backend_process_exited() const;
-    void request_backend_reset_from_watchdog(const std::string& reason);
 
     mutable std::mutex watchdog_mutex_;
     std::condition_variable watchdog_cv_;

@@ -88,7 +88,7 @@ Supported registration flags:
 | `--source SOURCE` | Remote registry for every checkpoint in this model: `huggingface` or `modelscope`. When omitted, the server's configured `default_model_source` applies. |
 | `--checkpoint TYPE CHECKPOINT` | Add a checkpoint entry. Repeat for multi-file models such as `main` + `mmproj` or `main` + `vae`. |
 | `--recipe RECIPE` | Recipe to associate with the new `user.*` model. Common values: <!-- BEGIN GENERATED: recipe-values -->`llamacpp`, `whispercpp`, `moonshine`, `kokoro`, `sd-cpp`, `flm`, `ryzenai-llm`, `vllm`, `thenoise`, `thinksound`, `acestep`, `onnxruntime`, `trellis`, `openmoss`, `collection.omni`<!-- END GENERATED: recipe-values -->. |
-| `--label LABEL` | Add a label to the new model. Repeatable. Valid labels include `coding`, `dflash`, `embeddings`, `hot`, `mtp`, `reasoning`, `reranking`, `tool-calling`, `vision`. |
+| `--label LABEL` | Add a label to the new model. Repeatable. Valid labels include `chat`, `coding`, `dflash`, `embeddings`, `hot`, `mtp`, `reasoning`, `reranking`, `tool-calling`, `vision`. When no [deployment label](../../api/openai.md#model-labels) is given, the recipe's default is added — `chat` for `llamacpp`, `flm`, `ryzenai-llm` and `vllm`; `transcription` for `whispercpp`; `image` for `sd-cpp`; and so on. |
 | `--components MODEL [MODEL ...]` | Components for an omni collection (see below). Use with `--recipe collection.omni`. |
 
 ### Register an omni collection
@@ -242,22 +242,22 @@ Advanced users can edit `user_models.json` and `recipe_options.json` directly. T
 
 ## Overview
 
-Custom model configuration involves two files, both located in the Lemonade cache directory:
+Custom model configuration involves two files, both located in the Lemonade config directory:
 
 | File | Purpose |
 |------|---------|
 | `user_models.json` | Model registry — defines what models are available (checkpoint, recipe, etc.) |
 | `recipe_options.json` | Per-model settings — configures how models run (context size, backend, etc.) |
 
-If you used an installer from a Lemonade release, the cache directory is typically:
+If you used an installer from a Lemonade release, the config directory is typically:
 
-| OS | Cache directory |
-|----|-----------------|
-| Linux systemd install | `/var/lib/lemonade/.cache/lemonade` |
-| Windows | `%USERPROFILE%\.cache\lemonade` |
-| macOS system install | `/Library/Application Support/lemonade/.cache` |
+| OS | Config directory |
+|----|------------------|
+| Linux systemd install | `/var/lib/lemonade` |
+| Windows | `%USERPROFILE%\.config\lemonade` |
+| macOS system install | `/Library/Application Support/lemonade/.config` |
 
-For a standalone `lemond` executable, the default is `~/.cache/lemonade` unless you pass an explicit `cache_dir` argument or set `LEMONADE_CACHE_DIR`.
+For a standalone `lemond` executable, the default config directory is `~/.config/lemonade`. Pass an explicit `config_dir` positional argument if you want persistent JSON files somewhere else; `cache_dir` only controls downloaded/runtime data.
 
 ## Model naming spec
 
@@ -466,7 +466,7 @@ For `sd-cpp` recipe models, you can specify default image generation parameters:
 
 - In `user_models.json`, store model names **without** the `user.` prefix (e.g., `MyCustomModel`).
 - When referencing the model in API calls, CLI commands, or `recipe_options.json`, use the **full prefixed name** (e.g., `user.MyCustomModel`).
-- Labels like `custom` are added automatically. Additional labels (`reasoning`, `vision`, `embeddings`, `reranking`) can be set via the `pull` CLI/API flags, or by including a `labels` array in the JSON entry.
+- Labels like `custom` are added automatically, as is the recipe's default deployment label when the entry names none of its own (`chat` for a `llamacpp` entry, `image` for an `sd-cpp` one). Additional labels (`reasoning`, `vision`, `embeddings`, `reranking`) can be set via the `pull` CLI/API flags, or by including a `labels` array in the JSON entry.
 
 ## `recipe_options.json` Reference
 
@@ -490,6 +490,8 @@ This file configures per-model runtime settings. Each key is a **canonical model
 > **Migration:** Older Lemonade versions stored built-in entries under their bare name (e.g. `"Qwen2.5-Coder-1.5B-Instruct"` with no prefix). On first load with the current version, any bare key matching a known built-in is rewritten to `builtin.<name>` in place. An INFO log line reports the number of migrated keys. Bare keys that don't match a built-in are preserved unchanged.
 
 > **Note:** Per-model options can also be configured through the Lemonade desktop app's model settings, or via the `save_options` parameter in the [`/api/v1/load` endpoint](../../api/lemonade.md#post-v1load).
+
+> **Editing options without loading:** [`POST /api/v1/models/{id}/options`](../../api/lemonade.md#post-v1modelsidoptions) writes this file directly, so options can be saved without bringing a model into memory. It merges rather than replaces, and `"ctx_size": -1` saves automatic context sizing even when the server-wide `ctx_size` is an explicit number. [`DELETE`](../../api/lemonade.md#delete-v1modelsidoptions) on the same path resets the model by removing its entry entirely.
 
 ## Complete Examples
 
