@@ -2,6 +2,7 @@
   "defaults": {
     "version": "1",
     "recipe": "collection.router",
+    "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedModel", "EmbedOpen", "EmbedClosed"],
     "routing": {
       "candidates": ["MathLLM", "CodingLLM", "DefaultLLM"],
       "default_model": "DefaultLLM"
@@ -10,7 +11,6 @@
   "policies": {
     "concepts": {
       "model_name": "user.Semantic-Concepts",
-      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedModel"],
       "routing": {
         "classifiers": [
           { "id": "topic", "type": "semantic_similarity", "model": "EmbedModel", "reference_phrases": { "coding": ["writes code"], "math": ["proves theorems"] } }
@@ -23,7 +23,6 @@
     },
     "implicit_label": {
       "model_name": "user.Semantic-ImplicitLabel",
-      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedModel"],
       "routing": {
         "classifiers": [
           { "id": "topic", "type": "semantic_similarity", "model": "EmbedModel", "reference_phrases": { "coding": ["writes code"], "math": ["proves theorems"] }, "default_label": "coding" }
@@ -35,7 +34,6 @@
     },
     "on_error": {
       "model_name": "user.Semantic-OnError",
-      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedOpen", "EmbedClosed"],
       "routing": {
         "classifiers": [
           { "id": "fail_open", "type": "semantic_similarity", "model": "EmbedOpen", "reference_phrases": { "coding": ["writes code"] } },
@@ -49,7 +47,6 @@
     },
     "scoring": {
       "model_name": "user.Semantic-Scoring",
-      "components": ["MathLLM", "CodingLLM", "DefaultLLM", "EmbedModel"],
       "routing": {
         "classifiers": [
           { "id": "topic", "type": "semantic_similarity", "model": "EmbedModel", "reference_phrases": { "coding": ["writes code", "fixes bugs"] } }

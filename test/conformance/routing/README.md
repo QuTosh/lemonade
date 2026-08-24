@@ -27,9 +27,16 @@ stored as a **diff** against the tier's `defaults`; the full policy is the RFC 7
 `merge_patch` of the defaults with that diff — objects merge recursively (so the
 nested `routing` block merges key by key), and arrays and scalars in a policy replace
 the default. `defaults` is optional; `policies` is required and holds one object per
-policy id. The `classifiers`, `rules`, and `components` stay inline in each policy, so
-every policy still reads as a full spec. `l1/resolution` adding an `edge` candidate,
-for example, just overrides `candidates` and `components` in its own diff.
+policy id. Every tier shares one defaults shape — `version`, `recipe`, `components`,
+and `routing.candidates` / `routing.default_model` — so a policy diff usually carries
+only its `model_name` and `routing.rules`. Fields that hold across a whole tier live in
+`defaults`: `l3` also hoists its shared `classifiers` pool there, so its policies are
+just rules. A field stays inline only when it is policy-specific — `l0a` and `l2`
+classifiers (each has its own prompt, labels, or `reference_phrases`), or a single
+override such as `l1/conditions_metadata` setting `default_model` to `cloud`. Because
+`components` and `candidates` carry the whole tier's model set (their union), a policy
+that once widened them — `l1/resolution` with its `edge` candidate — needs no override:
+the extra candidate is inert for policies that never route to it.
 
 `<schema_major>` is the policy's root `version` (carried in `defaults`), and the
 runner fails a policy that declares a different one. It is **not** the `version`
@@ -49,9 +56,9 @@ below keys on that, not on the file layout.
 Behaviors that need genuinely different policies live as separate policies in the same
 tier file — `conditions_features` and `conditions_features_negated` route the same
 tool-less request to opposite candidates, so they stay two policies. Behaviors that
-differ only in a per-classifier field can live together as two classifiers in one
-policy: `l2`'s `on_error` and `l3`'s `on_error` each hold a default-`on_error`
-classifier and a `match_true` classifier side by side. Anything a request can vary
+differ only in a per-classifier field can live together as two classifiers: `l2`'s
+`on_error` holds a default-`on_error` classifier and a `match_true` one side by side
+inline, and `l3`'s `on_error` reads the matching pair from its shared pool. Anything a request can vary
 (`route_trace`, the input, `metadata`) is just another case row against the policy it
 exercises, so there are more policies than distinct semantics.
 

@@ -2,9 +2,9 @@
   "defaults": {
     "version": "1",
     "recipe": "collection.router",
-    "components": ["local", "cloud"],
+    "components": ["local", "cloud", "edge"],
     "routing": {
-      "candidates": ["local", "cloud"],
+      "candidates": ["local", "cloud", "edge"],
       "default_model": "local"
     }
   },
@@ -70,7 +70,7 @@
             { "not": { "keywords_any": ["kilo"] } }
           ] }, "route_to": "cloud" },
           { "id": "implicit-all-rule", "match": { "keywords_any": ["lima"], "max_chars": 1000 }, "route_to": "cloud" },
-          { "id": "unicode-keyword-rule", "match": { "keywords_any": ["caf\u00e9"] }, "route_to": "cloud" },
+          { "id": "unicode-keyword-rule", "match": { "keywords_any": ["café"] }, "route_to": "cloud" },
           { "id": "digit-class-rule", "match": { "regex": "id-\\d" }, "route_to": "cloud" }
         ]
       }
@@ -94,9 +94,7 @@
     },
     "resolution": {
       "model_name": "user.Resolution",
-      "components": ["local", "cloud", "edge"],
       "routing": {
-        "candidates": ["local", "cloud", "edge"],
         "rules": [
           { "id": "first-rule", "match": { "keywords_any": ["shared", "only1"] }, "route_to": "cloud" },
           { "id": "second-rule", "match": { "keywords_any": ["shared", "only2"] }, "route_to": "edge" },
