@@ -1,12 +1,15 @@
 {
-  "generated_at": "2026-09-22T03:07:21.736493+00:00",
-  "run_id": "35194558058",
-  "run_url": "https://github.com/QuTosh/lemonade/actions/runs/35194558058",
+  "generated_at": "2026-09-27T03:07:46.963044+00:00",
+  "run_id": "35574829475",
+  "run_url": "https://github.com/QuTosh/lemonade/actions/runs/35574829475",
   "repo": "QuTosh/lemonade",
   "repo_url": "https://github.com/QuTosh/lemonade",
   "actions_url": "https://github.com/QuTosh/lemonade/actions/workflows/benchmark-regression.yml",
-  "commit": "a1f44f0cfe04881c3ab6ff89b8bb1e657ce55f69",
+  "commit": "ce082048172bc305e3a3dab963edd0f07ad5c048",
   "lemonade_version": null,
+  "experimental_forks": [
+    "llamacpp-hrx"
+  ],
   "by_model_scenario": {},
   "history": {}
 }
